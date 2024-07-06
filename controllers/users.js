@@ -136,7 +136,7 @@ export const deleteUser = async (req, res) => {
       console.log(public_id);
       const response = await cloudinary.uploader.destroy(public_id);
       console.log(response);
-      // fs.unlinkSync(`public/assets/${file}`);
+      // fs.unlinkSync(`public/${file}`);
     });
 
     await cloudinary.uploader.destroy(userProfilePublicId);
