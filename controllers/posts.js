@@ -172,8 +172,9 @@ export const deletePost = async (req, res) => {
         .splice(-3, 3)
         .join("/")
         .split(".")[0];
-      const response = await cloudinary.uploader.destroy(public_id);
-      console.log(response);
+      const response = await cloudinary.uploader.destroy(public_id, {
+        resource_type: post.fileType === "image" ? "image" : "video",
+      });
       if (response.result !== "ok")
         return res
           .status(400)

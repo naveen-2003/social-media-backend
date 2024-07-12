@@ -35,6 +35,7 @@ import postRoute from "./routes/post.js";
 import authentication from "./middlewares/auth.js";
 import { createPost } from "./controllers/posts.js";
 import { uploadFile } from "./config/cloudinary.js";
+import { updateUser } from "./controllers/users.js";
 
 // Storage Configuration
 const storage = multer.diskStorage({
@@ -51,6 +52,13 @@ const upload = multer({ storage });
 app.post("/auth/sendotp", sentOTP);
 app.post("/auth/verifyotp", verifyOTP);
 app.post("/auth/register", upload.single("picture"), uploadFile, register);
+app.patch(
+  "/users/:id/",
+  authentication,
+  upload.single("picture"),
+  uploadFile,
+  updateUser
+);
 app.post(
   "/posts",
   authentication,

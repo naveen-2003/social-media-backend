@@ -52,6 +52,11 @@ const UserSchema = mongoose.Schema(
       type: Number,
       default: 0,
     },
+    links: {
+      type: Array,
+      default: [],
+      max: 5,
+    },
   },
   { timestamps: true }
 );

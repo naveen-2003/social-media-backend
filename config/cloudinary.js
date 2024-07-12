@@ -35,8 +35,9 @@ export const uploadFile = async (req, res, next) => {
     }
 
     let folder = "socialmedia";
-    if (req.url === "/posts") folder += "/posts";
-    if (req.url === "/auth/register") folder += "/users";
+    if (req.url.startsWith("/posts")) folder += "/posts";
+    if (req.url.startsWith("/auth/register") || req.url.startsWith("/users"))
+      folder += "/users";
     const result = await cloudinary.uploader.upload(req.file.path, {
       folder,
       resource_type: "auto",
@@ -48,7 +49,7 @@ export const uploadFile = async (req, res, next) => {
     fs.unlinkSync(req.file.path);
     req.file = result;
     req.file.resource_type = fileType;
-    console.log(result);
+    console.log("File from uploadFile: ", result);
     next();
   } catch (error) {
     console.log(error);

@@ -2,6 +2,7 @@ import dbSession from "../db/session.js";
 import Post from "../models/Post.js";
 import User from "../models/User.js";
 import { v2 as cloudinary } from "cloudinary";
+import { validate } from "../utils/validation.js";
 
 export const getUser = async (req, res) => {
   try {
@@ -148,6 +149,81 @@ export const deleteUser = async (req, res) => {
     return res.status(500).json({ error: error.message });
   } finally {
     console.log("Session Ended");
+    await session.endSession();
+  }
+};
+
+export const updateUser = async (req, res) => {
+  const session = await dbSession();
+  try {
+    session.startTransaction();
+    const id = req.user.id;
+    const user = await User.findById({ _id: id }).session(session);
+    if (!user) {
+      return res.status(404).json({ msg: "User not found!" });
+    }
+    const oldPicturePath = user.picturePath
+      .split("/")
+      .splice(-3, 3)
+      .join("/")
+      .split(".")[0];
+    if (req.file) {
+      console.log("File : ", req.file);
+      user.picturePath = req.file.secure_url;
+    }
+    if (req.body.firstName && validate(req.body.firstName, "alpha")) {
+      user.firstName = req.body.firstName;
+    }
+    if (req.body.lastName && validate(req.body.lastName, "alpha")) {
+      user.lastName = req.body.lastName;
+    }
+    if (req.body.location && validate(req.body.location, "alphanumeric")) {
+      user.location = req.body.location;
+    }
+    if (req.body.occupation && validate(req.body.firstName, "string")) {
+      user.occupation = req.body.occupation;
+    }
+    if (req.body.links && Array.isArray(req.body.links)) {
+      const links = req.body.links;
+      if (links.length > 5) {
+        return res.status(400).json({ msg: "You can only have 5 links" });
+      }
+      links?.some(async (link) => {
+        if (typeof link === "string" && !validate(link, "url")) {
+          return res.status(400).json({ msg: "Invalid URL" });
+        }
+      });
+      user.links = links;
+    }
+    await user.save();
+    await Post.updateMany(
+      { userId: id },
+      {
+        $set: {
+          firstName: user.firstName,
+          lastName: user.lastName,
+          location: user.location,
+          userPicturePath: user.picturePath,
+        },
+      }
+    ).session(session);
+    await Post.updateMany(
+      { "comments.userId": id },
+      {
+        $set: {
+          "comments.$[comment].fullName": `${user.firstName} ${user.lastName}`,
+          "comments.$[comment].userPicturePath": user.picturePath,
+        },
+      },
+      { arrayFilters: [{ "comment.userId": id }] }
+    ).session(session);
+    await cloudinary.uploader.destroy(oldPicturePath);
+    await session.commitTransaction();
+    res.status(200).json(user);
+  } catch (error) {
+    await session.abortTransaction();
+    res.status(400).json({ msg: error.message });
+  } finally {
     await session.endSession();
   }
 };
