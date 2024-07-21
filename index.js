@@ -9,7 +9,7 @@ import morgan from "morgan";
 import path from "path";
 import { fileURLToPath } from "url";
 import connetDB from "./db/connect.js";
-import { register, sentOTP, verifyOTP } from "./controllers/auth.js";
+import { register, resetPassword } from "./controllers/auth.js";
 import crypto from "crypto";
 // import { users, posts } from "./data/index.js";
 // import User from "./models/User.js";
@@ -49,8 +49,7 @@ const storage = multer.diskStorage({
 });
 
 const upload = multer({ storage });
-app.post("/auth/sendotp", sentOTP);
-app.post("/auth/verifyotp", verifyOTP);
+
 app.post("/auth/register", upload.single("picture"), uploadFile, register);
 app.patch(
   "/users/:id/",
@@ -66,6 +65,7 @@ app.post(
   uploadFile,
   createPost
 );
+app.post("/auth/resetpassword/:token", resetPassword);
 
 //Routers
 app.use("/auth", authRoute);

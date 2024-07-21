@@ -3,6 +3,7 @@ import Post from "../models/Post.js";
 import User from "../models/User.js";
 import { v2 as cloudinary } from "cloudinary";
 import { validate } from "../utils/validation.js";
+import bcrypt from "bcryptjs";
 
 export const getUser = async (req, res) => {
   try {
@@ -156,12 +157,12 @@ export const deleteUser = async (req, res) => {
 export const updateUser = async (req, res) => {
   const session = await dbSession();
   try {
-    session.startTransaction();
     const id = req.user.id;
     const user = await User.findById({ _id: id }).session(session);
     if (!user) {
       return res.status(404).json({ msg: "User not found!" });
     }
+    session.startTransaction();
     const oldPicturePath = user.picturePath
       .split("/")
       .splice(-3, 3)
@@ -171,29 +172,37 @@ export const updateUser = async (req, res) => {
       console.log("File : ", req.file);
       user.picturePath = req.file.secure_url;
     }
-    if (req.body.firstName && validate(req.body.firstName, "alpha")) {
-      user.firstName = req.body.firstName;
+    const { firstName, lastName, location, occupation, links } = req.body;
+    if (firstName && validate(firstName, "alpha")) {
+      user.firstName = firstName;
     }
-    if (req.body.lastName && validate(req.body.lastName, "alpha")) {
-      user.lastName = req.body.lastName;
+    if (lastName && validate(lastName, "alpha")) {
+      user.lastName = lastName;
     }
-    if (req.body.location && validate(req.body.location, "alphanumeric")) {
-      user.location = req.body.location;
+    if (location && validate(location, "alphanumeric")) {
+      user.location = location;
     }
-    if (req.body.occupation && validate(req.body.firstName, "string")) {
-      user.occupation = req.body.occupation;
+    if (occupation && validate(occupation, "string")) {
+      user.occupation = occupation;
     }
-    if (req.body.links && Array.isArray(req.body.links)) {
-      const links = req.body.links;
-      if (links.length > 5) {
-        return res.status(400).json({ msg: "You can only have 5 links" });
+    if (links) {
+      const linkList = links.split(",");
+      if (linkList.length > 5) {
+        throw new Error("You can only have 5 links");
+        // return res.status(400).json({ msg: "You can only have 5 links" });
       }
-      links?.some(async (link) => {
-        if (typeof link === "string" && !validate(link, "url")) {
-          return res.status(400).json({ msg: "Invalid URL" });
+      console.log("Links : ", linkList);
+      linkList?.some((link, index) => {
+        console.log("link : ", link);
+        if (typeof link !== "string" || !validate(link, "url")) {
+          // return res.status(400).json({ msg: "Invalid URL" });
+          throw new Error("Invalid URL");
+        }
+        if (!link.startsWith("http")) {
+          linkList[index] = `http://${link}`;
         }
       });
-      user.links = links;
+      user.links = linkList;
     }
     await user.save();
     await Post.updateMany(
@@ -219,11 +228,48 @@ export const updateUser = async (req, res) => {
     ).session(session);
     await cloudinary.uploader.destroy(oldPicturePath);
     await session.commitTransaction();
-    res.status(200).json(user);
+    return res.status(200).json(user);
   } catch (error) {
+    console.log(error);
     await session.abortTransaction();
-    res.status(400).json({ msg: error.message });
+    return res.status(400).json({ msg: error.message });
   } finally {
     await session.endSession();
+    console.log("Session Ended");
+  }
+};
+
+export const updatePassword = async (req, res) => {
+  const session = await dbSession();
+  try {
+    const { oldpassword, password, repeatpassword } = req.body;
+    if (!oldpassword || !password || !repeatpassword) {
+      return res.status(400).json({ msg: "All fields are required!" });
+    }
+    const id = req.user.id;
+    session.startTransaction();
+    const user = await User.findById({ _id: id }).session(session);
+    if (!user) {
+      return res.status(404).json({ msg: "User not found!" });
+    }
+    if (password !== repeatpassword) {
+      return res.status(400).json({ msg: "Passwords do not match!" });
+    }
+    const isMatch = await user.comparePassword(oldpassword);
+    if (!isMatch) {
+      return res.status(400).json({ msg: "Invalid Password!" });
+    }
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(password, salt);
+    await user.save();
+    await session.commitTransaction();
+    return res.status(200).json({ msg: "Password Updated!" });
+  } catch (error) {
+    console.log(error);
+    await session.abortTransaction();
+    return res.status(400).json({ msg: error.message });
+  } finally {
+    await session.endSession();
+    console.log("Session Ended");
   }
 };

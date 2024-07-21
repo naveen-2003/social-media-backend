@@ -6,6 +6,8 @@ import nodemailer from "nodemailer";
 import Post from "../models/Post.js";
 import fs from "fs";
 import dbSession from "../db/session.js";
+import Reset from "../models/Reset.js";
+import crypto from "crypto";
 
 const transporter = nodemailer.createTransport({
   service: "gmail",
@@ -167,5 +169,78 @@ export const login = async (req, res) => {
   } catch (error) {
     console.log(error);
     res.status(500).json({ error: error.message });
+  }
+};
+
+export const sendResetLink = async (req, res) => {
+  if (!req.body.email) {
+    return res.status(400).json({ msg: "Please provide the email address" });
+  }
+  const email = req.body.email;
+  try {
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(400).json({ msg: "User not found" });
+    }
+    const token = crypto.randomBytes(16).toString("hex");
+    const newReset = await Reset.create({
+      email,
+      token,
+      expireTime: Date.now() + 600000,
+    });
+    if (!newReset) {
+      throw Error("Error in creating reset link");
+    }
+    const mailOptions = {
+      from: process.env.AUTH_MAIL_ID,
+      to: email,
+      subject: "Reset Password",
+      html: `<h1>Click <a href="${process.env.CLIENT_URL}/resetpassword/${newReset.token}">here</a> to reset your password</h1>`,
+    };
+    await transporter.sendMail(mailOptions);
+    res.status(200).json({ msg: "Reset Link sent to your mail" });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ msg: error.message });
+  }
+};
+
+export const resetPassword = async (req, res) => {
+  const session = await dbSession();
+  const { password, confirmpassword } = req.body;
+  const token = req.params.token;
+  if (!password || !confirmpassword) {
+    return res
+      .status(400)
+      .json({ msg: "Please provide both password and confirm password" });
+  }
+  if (password !== confirmpassword) {
+    return res.status(400).json({ msg: "Passwords do not match" });
+  }
+  session.startTransaction();
+  try {
+    const reset = await Reset.findOne({ token }).session(session);
+    if (!reset) {
+      return res.status(400).json({ msg: "Invalid token" });
+    }
+    if (reset.expireAt < Date.now()) {
+      await Reset.deleteOne({ token }).session(session);
+      await session.commitTransaction();
+      return res.status(400).json({ msg: "Token expired" });
+    }
+    const user = await User.findOne({ email: reset.email });
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(password, salt);
+    await user.save();
+    await Reset.deleteOne({ token }).session(session);
+    await session.commitTransaction();
+    res.status(200).json({ msg: "Password reset successful" });
+  } catch (error) {
+    console.log(error);
+    await session.abortTransaction();
+    res.status(500).json({ msg: error.message });
+  } finally {
+    await session.endSession();
+    console.log("Session Ended");
   }
 };

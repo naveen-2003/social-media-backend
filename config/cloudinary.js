@@ -4,17 +4,8 @@ import dotenv from "dotenv";
 import { fileTypeFromFile } from "file-type";
 dotenv.config();
 
-// cloudinary.config({
-
-// //   cloud_name: process.env.CLOUD_NAME,
-// //   api_key: process.env.CLOUD_API_KEY,
-// //   api_secret: process.env.CLOUD_API_SECRET,
-// });
-
 export const uploadFile = async (req, res, next) => {
   try {
-    // console.log(req.file);
-    // console.log(req.url);
     if (!req.file) {
       next();
       return;

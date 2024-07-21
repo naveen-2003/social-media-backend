@@ -10,7 +10,7 @@ const authentication = async (req, res, next) => {
   if (!payload) {
     return res.status(403).json({ msg: "Access Denied!" });
   }
-  req.user = { id: payload.id };
+  req.user = payload;
   next();
 };
 

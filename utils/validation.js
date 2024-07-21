@@ -1,6 +1,7 @@
 export const validate = (input, type) => {
   const inputType = typeof input;
   console.log(inputType);
+  console.log(input);
   if (type === "string") {
     if (inputType !== "string") return false;
     return input.length > 0;
