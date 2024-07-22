@@ -10,6 +10,7 @@ export const uploadFile = async (req, res, next) => {
       next();
       return;
     }
+    console.log("File from uploadFile: ", req.file.path);
     let fileType = await fileTypeFromFile(req.file.path);
     if (!fileType) {
       fs.unlinkSync(req.file.path);
@@ -40,7 +41,7 @@ export const uploadFile = async (req, res, next) => {
     fs.unlinkSync(req.file.path);
     req.file = result;
     req.file.resource_type = fileType;
-    console.log("File from uploadFile: ", result);
+    // console.log("File from uploadFile: ", result);
     next();
   } catch (error) {
     console.log(error);
